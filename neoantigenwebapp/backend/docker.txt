@@ -1,0 +1,6 @@
+sudo docker run --gpus all -v /mnt/DATOS/coding/NeoantigenWEB_APP:/neoantigenweb -p 5000:5000 --name pytorch_neoantigenweb -it pytorch/pytorch:1.13.0-cuda11.6-cudnn8-devel
+
+sudo docker start pytorch_neoantigenweb
+sudo docker exec -it pytorch_neoantigenweb bash
+
+sudo docker run --gpus all -v /mnt/DATOS/coding/NeoantigenWEB_APP:/neoantigenweb -p 5000:5000 --name pytorch_neoantigenweb -it pytorch_neoantigenweb

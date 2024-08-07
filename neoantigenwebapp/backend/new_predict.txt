@@ -1,0 +1,2 @@
+../../esm2_distilbert_t33_c3/checkpoint-201000/
+{"test_loss": 0.23691953718662262, "test_auc": 0.9166666666666665, "test_precision": 0.9166666666666666, "test_recall": 0.9166666666666666, "test_f1": 0.9166666666666666, "test_sn": 0.9166666666666666, "test_sp": 0.9166666666666666, "test_accuracy": 0.9166666666666666, "test_mcc": 0.8333333333333334, "test_runtime": 1.1054, "test_samples_per_second": 86.846, "test_steps_per_second": 10.856}
