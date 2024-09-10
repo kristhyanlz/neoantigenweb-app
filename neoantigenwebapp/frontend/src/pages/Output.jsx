@@ -1,35 +1,44 @@
 import MUIDataTable from "mui-datatables";
+import { useState, useEffect } from "react";
 
 export default function Output() {
 
   const columns = [
+    {
+      name: "hla",
+      label: "HLA",
+      options: {
+        filter: true,
+        sort: false,
+      }
+    },
+    {
+      name: "mhc",
+      label: "MHC",
+      options: {
+      filter: true,
+      sort: true,
+      }
+    },
+    {
+      name: "peptide",
+      label: "Peptide",
+      options: {
+      filter: true,
+      sort: false,
+      }
+    },
   {
-    name: "name",
-    label: "MHC",
-    options: {
-    filter: true,
-    sort: true,
-    }
-  },
-  {
-    name: "company",
-    label: "Peptide",
+    name: "prediction",
+    label: "Prediction",
     options: {
     filter: true,
     sort: false,
     }
   },
   {
-    name: "city",
-    label: "Core",
-    options: {
-    filter: true,
-    sort: false,
-    }
-  },
-  {
-    name: "state",
-    label: "% Bind level",
+    name: "score",
+    label: "Score",
     options: {
     filter: true,
     sort: false,
@@ -37,12 +46,14 @@ export default function Output() {
   },
   ];
 
-  const data = [
-  { name: "HLA-A*01:01", company: "CTGACCATGT", city: "CTGACCATGT", state: "87.857" },
-  { name: "HLA-A*01:01", company: "TGCCGCTTAC", city: "TGCCGCTTAC", state: "45.784" },
-  { name: "HLA-A*01:01", company: "GATGAGGAGT", city: "GATGAGGAGT", state: "89.451" },
-  { name: "HLA-A*01:01", company: "CCCTCAGGGT", city: "CCCTCAGGGT", state: "90.123" },
-  ];
+  const [data, setData] = useState([]);
+
+  useEffect(() => {
+    if (localStorage.getItem('predictdata') != ''){
+      setData( JSON.parse(localStorage.getItem('predictdata')) )
+    }
+    //localStorage.setItem('predictdata', '')
+  }, []);
 
   const options = {
     filterType: 'checkbox',

@@ -14,6 +14,7 @@ print(config)
 
 model = Trainer(model = BertRnnDist.from_pretrained(model_name, config=config), compute_metrics = compute_metrics)
 test_dataset = DataSetLoaderBERT("./data.csv", tokenizer_name="../../esm2_t33_650M_UR50D", max_length=seq_length)
+#test_dataset = DataSetLoaderBERT("./hlab_train_micro.csv", tokenizer_name="../../esm2_t33_650M_UR50D", max_length=seq_length)
 #test_dataset = DataSetLoaderBERT("../../hlab_train_micro.csv", tokenizer_name="../../esm2_t33_650M_UR50D", max_length=seq_length)
 predictions, label_ids, metrics = model.predict(test_dataset)
 print(model_name)

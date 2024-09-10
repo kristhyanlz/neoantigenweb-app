@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Container, Box, InputLabel, FormControl, Select, MenuItem, TextField, Button, FormLabel, Autocomplete } from '@mui/material';
+
+//TOAST
+import { toast } from 'react-toastify';
 
 import {FileUpload as FileUploadIcon, Biotech as BiotechIcon} from '@mui/icons-material';
 
@@ -41,12 +45,61 @@ const inputTypes = [
   {key: 'Fasta', value: 'Fasta'},
 ]
 
+
 export default function Home() {
+  const navigate = useNavigate();
+  
   const [inputType, setInputType] = useState('Peptide');
+  const [inputPeptide, setInputPeptide] = useState('');
+  const [inputMhc, setInputMhc] = useState('');
+  const [inputHla, setInputHla] = useState('');
 
   useEffect(() => {
-    console.log(inputType);
+    console.log(`inputType: ${inputType}`);
   }, [inputType]);
+
+  //MHC + peptide
+  const submition = async (event) => {
+    event.preventDefault()
+    let jsonQuery = []
+    const allPeptides = inputPeptide.split("\n")
+    for (let i = 0; i < allPeptides.length; i++) {
+      if (inputType === 'Fasta' && allPeptides[i].startsWith('>')) {
+        continue
+      }
+      
+      jsonQuery.push({
+        'hla': inputHla,
+        'peptide': allPeptides[i],
+        'mhc': inputMhc,
+      })
+    }
+
+    console.log(jsonQuery)
+
+    const submitQuery = await fetch('http://127.0.0.1:5000/predict', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(jsonQuery)
+    })
+
+    if (!submitQuery.ok) {
+      if (submitQuery.status === 500) {
+        toast.error("Revisa los datos enviados")
+      } else {
+        toast.error("Error en la solicitud")
+      }
+    } else {
+      const predictdata = await submitQuery.json()
+      toast.success("Solicitud exitosa")
+      console.log(predictdata)
+
+      localStorage.setItem('predictdata', JSON.stringify(predictdata))
+      navigate('/Output')
+    }
+  }
 
   return (
     <Container maxWidth='xs' sx={styles.container}>
@@ -55,7 +108,7 @@ export default function Home() {
           <BiotechIcon fontSize='large' />
       </Box>
 
-      <Box component='form' onSubmit={null} sx={styles.formulario}>
+      <Box component='form' onSubmit={submition} sx={styles.formulario}>
 
         <FormControl fullWidth sx={styles.pb}>
           <InputLabel id="lbl-input-type">Input type</InputLabel>
@@ -83,12 +136,19 @@ export default function Home() {
           multiline
           rows={4}
           sx={styles.pb}
+          onChange={(val) => {
+            setInputPeptide(val.target.value)
+          }}
         />
 
         <Autocomplete
           fullWidth
           disablePortal
           options={hlaData}
+          onChange={(event, newValue) => {
+            setInputMhc(newValue.id);
+            setInputHla(newValue.label);
+          }}
           renderInput={(Params) => (
             <TextField
               {...Params}
@@ -107,6 +167,10 @@ export default function Home() {
             File CSV
           </Button>
         </FormControl>
+
+        <Button type='submit' variant='contained' color='primary'>
+          Submit
+        </Button>
       </Box>
     </Container>
   )

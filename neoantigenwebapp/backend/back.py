@@ -1,84 +1,81 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import csv
 
-from model_utils_bert import BertRnn, BertRnnDist
-from transformers import Trainer, TrainingArguments, BertConfig
-from sklearn.metrics import accuracy_score, confusion_matrix, matthews_corrcoef, roc_auc_score
-from dataloader_bert import DataSetLoaderBERT
-from utils import compute_metrics
-import json
+from model_utils_bert import  BertRnnDist
+from transformers import BertConfig
+from transformers import  AutoTokenizer
+import numpy as np
+import torch
 
 import pandas as pd
 
 app = Flask(__name__)
+CORS(app)
+
+#DETECCION GPU
+#Limitamos el uso de la VRAM
+gpu_fraction = 1.0
+# Verificamos si al menos tenemos 1 GPU compatible con CUDA
+if torch.cuda.is_available():
+  # Apuntamos a la primera GPU CUDA
+  torch.cuda.set_per_process_memory_fraction(gpu_fraction)
+  device = torch.device("cuda")
+  print('# GPUs: ', torch.cuda.device_count())
+  print('Nombre de la GPU:', torch.cuda.get_device_name(0))
+# Si no tenemos alguna GPU CUDA
+else:
+  print('Se utilizará la CPU')
+  device = torch.device("CPU")
 
 model_name = "../../esm2_distilbert_t33_c3/checkpoint-201000/"  # mejor checkpoiunt
-name_results = "new_predict" # nombre de los archivos donde se guardara los resultados.
+name_results = "new_predict" # nombre de los archivos donde se guardara los resultados. 
+pre_trained = "../../esm2_t33_650M_UR50D" # Modelo original
+
+config = BertConfig.from_pretrained(model_name, num_labels=2 )
+model = BertRnnDist.from_pretrained(model_name, config=config).to(device)
+tokenizer = AutoTokenizer.from_pretrained(pre_trained)
 
 seq_length = 50 # for MHC-I
-config = BertConfig.from_pretrained(model_name, num_labels=2 )
 
-model = Trainer(model = BertRnnDist.from_pretrained(model_name, config=config), compute_metrics = compute_metrics)
-
-#HLA,peptide,Label,Length,mhc
-#HLA-A*01:01,LFGRDL,1,8,YFAMYQENMAHTDANTLYIIYRDYTWVARVYRGY
+def softmax(x):
+  """Compute softmax values for each sets of scores in x."""
+  result = np.exp(x) / np.sum(np.exp(x), axis=0)
+  return result.tolist()[1]
 
 @app.route('/predict', methods=['POST'])
 def predict():
-  global model_name, name_results, seq_length, config, model
+  global tokenizer, seq_length, model
   data = request.get_json()
-  print(data)
-  print(config)
-  with open('data.csv', mode='w') as file:
-    writer = csv.DictWriter(file, fieldnames=["HLA", "peptide", "Label", "Length", "mhc"])
-    writer.writeheader()
-    writer.writerows(data)
+  
+  if type(data) == dict:
+    data = [data]
 
-  test_dataset = DataSetLoaderBERT("./data.csv", tokenizer_name="../../esm2_t33_650M_UR50D", max_length=seq_length)
-  predictions, label_ids, metrics = model.predict(test_dataset)
+  result = []
+  for item in data:
+    testStr = item['mhc'] + item['peptide']
+    sample = tokenizer(testStr, padding='max_length', max_length=seq_length)
+    # convertimos en tensor, debe ser lista de listas
+    if torch.cuda.is_available():
+      ids = torch.cuda.IntTensor([sample['input_ids']]) # tensor 2D
+      masks = torch.cuda.IntTensor([sample['attention_mask']]) # tensor 2D
+    else:
+      ids = torch.IntTensor([sample['input_ids']]) # tensor 2D
+      masks = torch.IntTensor([sample['attention_mask']]) # tensor 2D
 
-  print(metrics)
-  #f = open(name_results + ".txt", "w")
-  #f.write(model_name + "\n")
-  #f.write(json.dumps(metrics))
-  #f.close()
+    model.eval()
+    with torch.no_grad(): # turn off gradients computation
+      output = model(ids, masks )
 
-  ########################## print predictions #######################################
-  df = pd.DataFrame(predictions)
-
-  df['prediction'] = df.apply(lambda row: ( 0 if row[0] > row[1] else 1 ), axis=1)
-  df['label'] = label_ids
-  print(df)
-  df.to_csv(name_results + ".csv")
-  return df.to_json()
-
-"""
-model_name = "../../esm2_distilbert_t33_c3/checkpoint-201000/"  # mejor checkpoiunt
-name_results = "new_predict" # nombre de los archivos donde se guardara los resultados. 
-
-seq_length = 50 # for MHC-I
-config = BertConfig.from_pretrained(model_name, num_labels=2 )
-print(config)
-
-model = Trainer(model = BertRnnDist.from_pretrained(model_name, config=config), compute_metrics = compute_metrics)
-test_dataset = DataSetLoaderBERT("../../hlab_train_micro.csv", tokenizer_name="../../esm2_t33_650M_UR50D", max_length=seq_length)
-predictions, label_ids, metrics = model.predict(test_dataset)
-print(model_name)
-print(metrics)
-f = open(name_results + ".txt", "w")
-f.write(model_name + "\n")
-f.write(json.dumps(metrics))
-f.close()
-
-########################## print predictions #######################################
-import pandas as pd
-df = pd.DataFrame(predictions)
-
-df['prediction'] = df.apply(lambda row: ( 0 if row[0] > row[1] else 1 ), axis=1)
-df['label'] = label_ids
-print(df)
-df.to_csv(name_results + ".csv")
-"""
+    result.append({
+      'hla': item['hla'],
+      'peptide': item['peptide'],
+      'mhc': item['mhc'],
+      'prediction': (0 if output.logits[0] > output.logits[1] else 1),
+      'score': softmax(output.logits.cpu().numpy())
+    }) 
+  print(result)
+  return jsonify(result)
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0')
+  app.run(debug=True, host='0.0.0.0')
