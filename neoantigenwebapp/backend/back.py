@@ -13,9 +13,27 @@ import pandas as pd
 app = Flask(__name__)
 CORS(app)
 
+import argparse
+
+parser = argparse.ArgumentParser(prog='Neoantigen Web Prediction')
+parser.add_argument('-b','--base', default='../../esm2_t33_650M_UR50D', help='Path to base model folder: esm2_t33_650M_UR50D')
+parser.add_argument('-m','--model', default='../../esm2_distilbert_t33_c3/checkpoint-201000/', help='Path to model folder: esm2_distilbert_t33_c3/checkpoint-201000/')
+parser.add_argument('-g','--gpu', type=float, default=1.0, help='Fraction of GPU memory to use')
+
+args = parser.parse_args()
+
+gpu_fraction = args.gpu
+model_name = args.model  # mejor checkpoiunt
+pre_trained = args.base # Modelo original
+
+print('Neoantigen Web Prediction')
+print('Model:', model_name)
+print('Base model:', pre_trained)
+print('Fraction of GPU memory to use:', gpu_fraction, '\n')
+
+
 #DETECCION GPU
 #Limitamos el uso de la VRAM
-gpu_fraction = 1.0
 # Verificamos si al menos tenemos 1 GPU compatible con CUDA
 if torch.cuda.is_available():
   # Apuntamos a la primera GPU CUDA
@@ -28,9 +46,7 @@ else:
   print('Se utilizará la CPU')
   device = torch.device("CPU")
 
-model_name = "../../esm2_distilbert_t33_c3/checkpoint-201000/"  # mejor checkpoiunt
-name_results = "new_predict" # nombre de los archivos donde se guardara los resultados. 
-pre_trained = "../../esm2_t33_650M_UR50D" # Modelo original
+
 
 config = BertConfig.from_pretrained(model_name, num_labels=2 )
 model = BertRnnDist.from_pretrained(model_name, config=config).to(device)
