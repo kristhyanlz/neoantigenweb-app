@@ -1,62 +1,25 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Container, Box, InputLabel, FormControl, Select, MenuItem, TextField, Button, FormLabel, Autocomplete } from '@mui/material';
+import { Container, Box, FormControl, TextField, Button, FormLabel, Autocomplete } from '@mui/material';
 
 //TOAST
 import { toast } from 'react-toastify';
 
-import {FileUpload as FileUploadIcon, Biotech as BiotechIcon} from '@mui/icons-material';
+import {FileUpload as FileUploadIcon, Biotech as BiotechIcon, ContentPasteGo as ContentPasteGoIcon} from '@mui/icons-material';
 
 import {hlaData} from '../data/unique_hla';
+import sampleData from '../data/sample_data';
 
-const styles = {
-  container: {
-    flex: 1,
-    justifyContent: 'flex-start',
-    marginTop: 2,
-    paddingTop: 0,
-    paddingHorizontal: 0,
-  },
-  titulo:{
-    textAlign: 'center',
-    fontSize: 32,
-    paddingTop: 0,
-    paddingBottom: 3,
-    fontFamily: 'Candara',
-  },
-  formEle: {
-    paddingHorizontal: 10,
-    paddingTop: 0,
-  },
-  formulario:{
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    mt: 1,
-    minWidth: 20
-  },
-  pb:{
-    paddingBottom: 3
-  }
-};
+import VisuallyHiddenInput from '../components/VisuallyHiddenInput';
 
-const inputTypes = [
-  {key: 'Peptide', value: 'Peptide'},
-  {key: 'Fasta', value: 'Fasta'},
-]
-
+import styles from '../components/submissionStyles';
 
 export default function Home() {
   const navigate = useNavigate();
   
-  const [inputType, setInputType] = useState('Peptide');
   const [inputPeptide, setInputPeptide] = useState('');
   const [inputMhc, setInputMhc] = useState('');
   const [inputHla, setInputHla] = useState('');
-
-  useEffect(() => {
-    console.log(`inputType: ${inputType}`);
-  }, [inputType]);
 
   //MHC + peptide
   const submition = async (event) => {
@@ -64,10 +27,10 @@ export default function Home() {
     let jsonQuery = []
     const allPeptides = inputPeptide.split("\n")
     for (let i = 0; i < allPeptides.length; i++) {
-      if (inputType === 'Fasta' && allPeptides[i].startsWith('>')) {
+      if (allPeptides[i].startsWith('>')){
         continue
       }
-      
+
       jsonQuery.push({
         'hla': inputHla,
         'peptide': allPeptides[i],
@@ -77,29 +40,50 @@ export default function Home() {
 
     console.log(jsonQuery)
 
-    const submitQuery = await fetch('http://127.0.0.1:5000/predict', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(jsonQuery)
-    })
+    try {
+      const submitQuery = await fetch('http://127.0.0.1:5000/predict', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(jsonQuery)
+      })
 
-    if (!submitQuery.ok) {
-      if (submitQuery.status === 500) {
-        toast.error("Revisa los datos enviados")
-      } else {
-        toast.error("Error en la solicitud")
-      }
-    } else {
       const predictdata = await submitQuery.json()
-      toast.success("Solicitud exitosa")
+      toast.success("Success!")
       console.log(predictdata)
 
       localStorage.setItem('predictdata', JSON.stringify(predictdata))
       navigate('/Output')
+      
+    } catch (error) {
+        toast.error("Error in the request")
     }
   }
+
+  const handleFileChange = (event) => {
+    const files = event.target.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      if (file.type === "text/plain") {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          console.log(e.target.result); // Imprime el contenido del archivo en la consola
+          setInputPeptide(e.target.result);
+        };
+        reader.readAsText(file); // Leer archivo como texto
+      } else {
+        toast.error("You must select a .txt file");
+      }
+    }
+  };
+
+  const loadSampleData = (event) => {
+    event.preventDefault()
+    setInputPeptide(sampleData.join('\n'))
+    setInputHla('HLA-A*01:01')
+  }
+
 
   return (
     <Container maxWidth='xs' sx={styles.container}>
@@ -109,33 +93,13 @@ export default function Home() {
       </Box>
 
       <Box component='form' onSubmit={submition} sx={styles.formulario}>
-
-        <FormControl fullWidth sx={styles.pb}>
-          <InputLabel id="lbl-input-type">Input type</InputLabel>
-          <Select
-            labelId="lbl-input-type"
-            label="Input type"
-            name='inputType'
-            onChange={(val) => setInputType(val.target.value)}
-            required
-            defaultValue={inputTypes[0].value}
-          >
-            {
-              inputTypes.map((ele) => 
-                <MenuItem key={ele.key} value={ele.value}>
-                  {ele.value}
-                </MenuItem>
-              )
-            }
-          </Select>
-        </FormControl>
-
         <TextField
           fullWidth
-          label={`Paste one or more sequences in ${inputType} format`}
           multiline
+          label='Paste in peptide or fasta format. One per line'
           rows={4}
           sx={styles.pb}
+          value={inputPeptide}
           onChange={(val) => {
             setInputPeptide(val.target.value)
           }}
@@ -145,6 +109,7 @@ export default function Home() {
           fullWidth
           disablePortal
           options={hlaData}
+          value={inputHla}
           onChange={(event, newValue) => {
             setInputMhc(newValue.id);
             setInputHla(newValue.label);
@@ -159,12 +124,26 @@ export default function Home() {
         />
 
         <FormControl fullWidth sx={styles.pb}>
-          <FormLabel> {`Or upload a file in ${inputType} format`} </FormLabel>
-          <Button endIcon={<FileUploadIcon />}>
+          <FormLabel> {`Or upload a file`} </FormLabel>
+          <Button
+            component="label"
+            endIcon={<FileUploadIcon />}
+          >
             File TXT
+            <VisuallyHiddenInput
+              type='file'
+              accept='.txt'
+              onChange={handleFileChange}
+            />
           </Button>
-          <Button endIcon={<FileUploadIcon />}>
-            File CSV
+        </FormControl>
+
+        <FormControl fullWidth sx={styles.sampleButton}>
+          <Button
+            endIcon={<ContentPasteGoIcon/>}
+            onClick={loadSampleData}
+          >
+            Load sample data
           </Button>
         </FormControl>
 
